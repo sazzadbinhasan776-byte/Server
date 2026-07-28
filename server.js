@@ -1,105 +1,50 @@
 const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
-const XLSX = require("xlsx");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
-
-// Files
+// Load student list
 const students = require("./students.json");
 
 const VOTES_FILE = "./votes.json";
 const VOTED_FILE = "./voted.json";
-const EXCEL_FILE = "./votes.xlsx";
-
-
-// ===============================
-// Helper Function: Read JSON
-// ===============================
-
-function readJSON(file) {
-
-    if (!fs.existsSync(file)) {
-        return [];
-    }
-
-    const data = fs.readFileSync(file, "utf8");
-
-    if (data.trim() === "") {
-        return [];
-    }
-
-    return JSON.parse(data);
-}
-
-
-
-// ===============================
-// Helper Function: Save Excel
-// ===============================
-
-function saveExcel(votes) {
-
-    const excelData = votes.map(v => ({
-        Candidate: v.candidate,
-        Time: v.votedAt
-    }));
-
-
-    const worksheet = XLSX.utils.json_to_sheet(excelData);
-
-    const workbook = XLSX.utils.book_new();
-
-
-    XLSX.utils.book_append_sheet(
-        workbook,
-        worksheet,
-        "Votes"
-    );
-
-
-    XLSX.writeFile(
-        workbook,
-        EXCEL_FILE
-    );
-
-}
-
 
 
 // ===============================
 // Check Student API
 // ===============================
-
-app.post("/check-student", (req, res)=>{
+app.post("/check-student", (req, res) => {
 
     const { reg } = req.body;
-
 
     const student = students.find(
         s => String(s.regNo).trim() === String(reg).trim()
     );
 
-
-    if(!student){
-
+    if (!student) {
         return res.json({
-            success:false,
-            message:"Registration Number not found."
+            success: false,
+            message: "Registration Number not found."
         });
-
     }
 
 
+    let voted = [];
 
-    const voted = readJSON(VOTED_FILE);
+    if (fs.existsSync(VOTED_FILE)) {
 
+        const data = fs.readFileSync(VOTED_FILE, "utf8");
+
+        if (data.trim() !== "") {
+            voted = JSON.parse(data);
+        }
+    }
 
 
     const alreadyVoted = voted.find(
@@ -107,181 +52,183 @@ app.post("/check-student", (req, res)=>{
     );
 
 
-    if(alreadyVoted){
-
+    if (alreadyVoted) {
         return res.json({
-            success:false,
-            message:"You have already voted."
+            success: false,
+            message: "You have already voted."
         });
-
     }
 
 
-
     res.json({
-
-        success:true,
+        success: true,
         student
-
     });
 
-
-
 });
-
-
 
 
 
 // ===============================
 // Vote API
 // ===============================
+app.post("/vote", (req, res) => {
 
-app.post("/vote",(req,res)=>{
-
-
-    const {regNo,candidate}=req.body;
-
+    const { regNo, candidate } = req.body;
 
 
     const student = students.find(
-        s=>String(s.regNo)===String(regNo)
+        s => String(s.regNo) === String(regNo)
     );
 
 
-
-    if(!student){
-
+    if (!student) {
         return res.json({
-
-            success:false,
-            message:"Student not found."
-
+            success: false,
+            message: "Student not found."
         });
-
     }
 
 
 
-    // Check duplicate vote
+    let voted = [];
 
-    let voted = readJSON(VOTED_FILE);
+    if (fs.existsSync(VOTED_FILE)) {
+
+        const data = fs.readFileSync(VOTED_FILE, "utf8");
+
+        if (data.trim() !== "") {
+            voted = JSON.parse(data);
+        }
+    }
 
 
 
     const alreadyVoted = voted.find(
-        v=>String(v.regNo)===String(regNo)
+        v => String(v.regNo) === String(regNo)
     );
 
 
-
-    if(alreadyVoted){
-
+    if (alreadyVoted) {
         return res.json({
-
-            success:false,
-            message:"You have already voted."
-
+            success: false,
+            message: "You have already voted."
         });
-
     }
 
 
 
+    let votes = [];
 
+    if (fs.existsSync(VOTES_FILE)) {
 
-    // ===============================
-    // Save Anonymous Vote
-    // ===============================
+        const data = fs.readFileSync(VOTES_FILE, "utf8");
 
-
-    let votes = readJSON(VOTES_FILE);
-
-
-    const voteData = {
-
-        candidate:candidate,
-
-        votedAt:new Date().toISOString()
-
-    };
+        if (data.trim() !== "") {
+            votes = JSON.parse(data);
+        }
+    }
 
 
 
-    votes.push(voteData);
-
-
-
-    fs.writeFileSync(
-
-        VOTES_FILE,
-
-        JSON.stringify(votes,null,2)
-
-    );
-
-
-
-    // Save Excel Backup
-
-    saveExcel(votes);
-
-
-
-
-
-
-    // ===============================
-    // Save Voter List
-    // ===============================
-
-
-    voted.push({
-
-        regNo:student.regNo,
-
-        votedAt:new Date().toISOString()
-
+    // Anonymous vote storage
+    votes.push({
+        candidate: candidate,
+        votedAt: new Date().toISOString()
     });
 
 
 
     fs.writeFileSync(
-
-        VOTED_FILE,
-
-        JSON.stringify(voted,null,2)
-
+        VOTES_FILE,
+        JSON.stringify(votes, null, 2)
     );
 
 
+
+    // Store only voter identity
+    voted.push({
+        regNo: student.regNo,
+        votedAt: new Date().toISOString()
+    });
+
+
+
+    fs.writeFileSync(
+        VOTED_FILE,
+        JSON.stringify(voted, null, 2)
+    );
 
 
 
     res.json({
-
-        success:true,
-
-        message:"Vote submitted successfully."
-
+        success: true,
+        message: "Vote submitted successfully."
     });
-
 
 
 });
 
 
 
+// ===============================
+// Result API
+// ===============================
+app.get("/result", (req, res) => {
+
+    let votes = [];
+
+
+    if (fs.existsSync(VOTES_FILE)) {
+
+        const data = fs.readFileSync(VOTES_FILE, "utf8");
+
+        if (data.trim() !== "") {
+            votes = JSON.parse(data);
+        }
+
+    }
+
+
+
+    const result = {};
+
+
+    votes.forEach((vote) => {
+
+        if (result[vote.candidate]) {
+            result[vote.candidate]++;
+        }
+        else {
+            result[vote.candidate] = 1;
+        }
+
+    });
+
+
+
+    res.json(result);
+
+});
+
+
+
+// ===============================
+// Health Check API
+// ===============================
+app.get("/", (req, res) => {
+
+    res.send("CR Election Server is running");
+
+});
+
 
 
 // ===============================
 // Start Server
 // ===============================
+app.listen(PORT, "0.0.0.0", () => {
 
-app.listen(PORT,()=>{
-
-    console.log(
-        `Server running on http://localhost:${PORT}`
-    );
+    console.log(`Server running on port ${PORT}`);
 
 });
