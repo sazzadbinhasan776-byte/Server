@@ -222,17 +222,32 @@ app.get("/", (req, res) => {
 });
 
 // ===============================
-// Reset All Votes (Use Before Election)
+// Reset API (Protected)
 // ===============================
 app.get("/reset", (req, res) => {
 
+    const { user, pass } = req.query;
+
+    // Admin Login
+    if (
+        user !== "sazzad" ||
+        pass !== "sust26cr1.1elc"
+    ) {
+        return res.status(401).json({
+            success: false,
+            message: "Invalid username or password."
+        });
+    }
+
     try {
 
+        // Reset votes.json
         fs.writeFileSync(
             VOTES_FILE,
             JSON.stringify([], null, 2)
         );
 
+        // Reset voted.json
         fs.writeFileSync(
             VOTED_FILE,
             JSON.stringify([], null, 2)
@@ -240,7 +255,7 @@ app.get("/reset", (req, res) => {
 
         res.json({
             success: true,
-            message: "All votes have been reset successfully."
+            message: "Election data has been reset successfully."
         });
 
     } catch (err) {
