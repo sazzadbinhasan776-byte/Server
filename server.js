@@ -1,7 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
-const axios = require("fs");
 
 const app = express();
 
@@ -144,22 +143,6 @@ app.post("/vote", (req, res) => {
         VOTES_FILE,
         JSON.stringify(votes, null, 2)
     );
-// Send vote to Google Sheet
-    axios.post(
-        "https://script.google.com/macros/s/AKfycbxHTLwS7XkethAd1GpwS1kdqTCB00Nv_6slz2wF2Fi-MhqnlD6gz38QHC1XkHx1PifheQ/exec",
-    {
-        candidate: candidate,
-        time: new Date().toISOString(),
-        id: Date.now()
-    }
-    )
-    .then(() => {
-        console.log("Vote added to Google Sheet");
-    })
-    .catch((err) => {
-        console.log("Google Sheet error:", err.message);
-    });
-
 
 
     // Store only voter identity
@@ -238,6 +221,38 @@ app.get("/", (req, res) => {
 
 });
 
+// ===============================
+// Reset All Votes (Use Before Election)
+// ===============================
+app.get("/reset", (req, res) => {
+
+    try {
+
+        fs.writeFileSync(
+            VOTES_FILE,
+            JSON.stringify([], null, 2)
+        );
+
+        fs.writeFileSync(
+            VOTED_FILE,
+            JSON.stringify([], null, 2)
+        );
+
+        res.json({
+            success: true,
+            message: "All votes have been reset successfully."
+        });
+
+    } catch (err) {
+
+        res.status(500).json({
+            success: false,
+            message: "Reset failed."
+        });
+
+    }
+
+});
 
 
 // ===============================
